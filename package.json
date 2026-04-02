@@ -1,0 +1,23 @@
+{
+  "name": "validate",
+  "version": "1.0.0",
+  "description": "",
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "start": "tools/run_test",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.21",
+    "tsx": "^4.20.6",
+    "typescript": "^5.8.3",
+    "vitest": "^2.1.8"
+  },
+  "dependencies": {
+    "fp-ts": "^2.16.11"
+  }
+}

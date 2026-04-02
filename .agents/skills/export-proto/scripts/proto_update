@@ -1,0 +1,13 @@
+#!/bin/bash
+# 更新协议与protoKey文件
+
+branch=$1
+
+cd ../../proto
+git checkout $branch
+git pull
+
+cd -
+
+cd ../protobuf/src
+python3 ./update_proto.py

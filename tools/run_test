@@ -1,0 +1,19 @@
+#!/bin/bash
+
+set -euo pipefail
+
+WORKSPACE=../config
+LUBAN_DLL=$WORKSPACE/导出工具/luban-bin/Luban.dll
+
+CONF_ROOT=$WORKSPACE
+
+dotnet $LUBAN_DLL \
+    -t all \
+    -c typescript-json \
+    -d json  \
+    --conf $CONF_ROOT/luban_conf.conf \
+    -x outputCodeDir=gen \
+    -x outputDataDir=gen/json \
+    --validationFailAsError true
+
+npm run test

@@ -1,0 +1,188 @@
+#!/usr/bin/env bash
+# ============================================================
+# update_art_svn — 更新美术 SVN 仓库
+# 用法: update_art_svn [子目录路径]
+#   无参数  → 更新整个 art 目录
+#   src    → 仅更新 art/src
+#   dist   → 仅更新 art/dist
+# ============================================================
+
+set -euo pipefail
+
+# ---- 常量 ----
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../../../" && pwd)"
+readonly ART_ROOT="${PROJECT_ROOT}/../../art"
+readonly LOG_FILE="/tmp/update_art_svn_$(date +%Y%m%d_%H%M%S).log"
+
+# ---- 颜色输出（兼容无 tput 环境） ----
+if command -v tput &>/dev/null && [ -t 1 ]; then
+    readonly C_GREEN="$(tput setaf 2)"
+    readonly C_RED="$(tput setaf 1)"
+    readonly C_YELLOW="$(tput setaf 3)"
+    readonly C_CYAN="$(tput setaf 6)"
+    readonly C_RESET="$(tput sgr0)"
+else
+    readonly C_GREEN="" C_RED="" C_YELLOW="" C_CYAN="" C_RESET=""
+fi
+
+# ---- 工具函数 ----
+log_info()  { echo "${C_CYAN}[INFO]${C_RESET}  $*"; }
+log_ok()    { echo "${C_GREEN}[OK]${C_RESET}    $*"; }
+log_warn()  { echo "${C_YELLOW}[WARN]${C_RESET}  $*"; }
+log_error() { echo "${C_RED}[ERROR]${C_RESET} $*" >&2; }
+
+# ---- 前置检查 ----
+preflight_check() {
+    # 检查 svn 是否可用
+    if ! command -v svn &>/dev/null; then
+        log_error "未找到 svn 命令，请先安装 Subversion"
+        log_info  "  macOS:  brew install subversion"
+        log_info  "  Linux:  sudo apt install subversion  /  sudo yum install subversion"
+        exit 1
+    fi
+
+    # 检查 art 目录是否存在
+    if [ ! -d "${ART_ROOT}" ]; then
+        log_error "美术仓库目录不存在: ${ART_ROOT}"
+        log_info  "请确认项目目录结构: work-project-02/art 应与 client 目录同级"
+        exit 1
+    fi
+
+    # 检查是否为 SVN 工作副本
+    if [ ! -d "${ART_ROOT}/.svn" ]; then
+        log_error "目标目录不是 SVN 工作副本: ${ART_ROOT}"
+        exit 1
+    fi
+}
+
+# ---- 解析更新目标路径（结果存入全局变量 RESOLVED_TARGET） ----
+resolve_target_path() {
+    local sub_dir="${1:-}"
+    RESOLVED_TARGET="${ART_ROOT}"
+
+    if [ -n "${sub_dir}" ]; then
+        RESOLVED_TARGET="${ART_ROOT}/${sub_dir}"
+        if [ ! -d "${RESOLVED_TARGET}" ]; then
+            log_error "子目录不存在: ${RESOLVED_TARGET}"
+            log_info  "可用子目录:"
+            for d in "${ART_ROOT}"/*/; do
+                [ -d "${d}" ] && echo "  - $(basename "${d}")"
+            done
+            exit 1
+        fi
+    fi
+}
+
+# ---- 显示更新前状态 ----
+show_pre_update_info() {
+    local target="$1"
+    log_info "目标路径: ${target}"
+
+    local svn_info
+    svn_info="$(svn info "${target}" 2>/dev/null)" || {
+        log_error "无法获取 SVN 信息"
+        exit 1
+    }
+
+    local current_rev
+    current_rev="$(echo "${svn_info}" | grep '^Revision:' | awk '{print $2}')"
+    local repo_url
+    repo_url="$(echo "${svn_info}" | grep '^URL:' | awk '{print $2}')"
+
+    log_info "仓库地址: ${repo_url}"
+    log_info "当前版本: r${current_rev}"
+}
+
+# ---- 执行更新 ----
+do_update() {
+    local target="$1"
+
+    log_info "正在执行 svn update ..."
+    log_info "日志文件: ${LOG_FILE}"
+    echo ""
+
+    local exit_code=0
+    svn update "${target}" 2>&1 | tee "${LOG_FILE}" || exit_code=$?
+
+    echo ""
+
+    if [ "${exit_code}" -ne 0 ]; then
+        log_error "svn update 失败 (exit code: ${exit_code})"
+        log_error "请检查日志: ${LOG_FILE}"
+
+        # 常见故障诊断
+        if grep -qi "conflict" "${LOG_FILE}"; then
+            log_warn "检测到文件冲突，请手动解决后重试"
+        fi
+        if grep -qi "authorization failed\|authentication" "${LOG_FILE}"; then
+            log_warn "认证失败，请检查 SVN 凭据"
+        fi
+        if grep -qi "unable to connect\|connection refused" "${LOG_FILE}"; then
+            log_warn "网络连接失败，请检查 VPN 或网络状态"
+        fi
+
+        exit "${exit_code}"
+    fi
+}
+
+# ---- 显示更新后状态 ----
+show_post_update_info() {
+    local target="$1"
+
+    local new_rev
+    new_rev="$(svn info "${target}" 2>/dev/null | grep '^Revision:' | awk '{print $2}')"
+
+    # 统计更新内容
+    local updated_count=0 added_count=0 deleted_count=0 conflict_count=0
+    if [ -f "${LOG_FILE}" ]; then
+        updated_count="$(grep -c '^U ' "${LOG_FILE}" 2>/dev/null || true)"
+        added_count="$(grep -c '^A ' "${LOG_FILE}" 2>/dev/null || true)"
+        deleted_count="$(grep -c '^D ' "${LOG_FILE}" 2>/dev/null || true)"
+        conflict_count="$(grep -c '^C ' "${LOG_FILE}" 2>/dev/null || true)"
+        # grep -c 无匹配时返回 0 但 exit code 为 1，使用 || true 避免 set -e 中断
+        updated_count="${updated_count:-0}"
+        added_count="${added_count:-0}"
+        deleted_count="${deleted_count:-0}"
+        conflict_count="${conflict_count:-0}"
+    fi
+
+    log_ok "更新完成"
+    log_info "最新版本: r${new_rev}"
+    log_info "变更统计: 更新=${updated_count}  新增=${added_count}  删除=${deleted_count}  冲突=${conflict_count}"
+
+    if [ "${conflict_count}" -gt 0 ]; then
+        log_warn "存在 ${conflict_count} 个冲突文件，请手动解决"
+    fi
+
+    log_info "日志路径: ${LOG_FILE}"
+}
+
+# ---- 主流程 ----
+main() {
+    local sub_dir="${1:-}"
+
+    echo ""
+    log_info "========== 更新美术 SVN 仓库 =========="
+    echo ""
+
+    preflight_check
+
+    resolve_target_path "${sub_dir}"
+    local target="${RESOLVED_TARGET}"
+
+    show_pre_update_info "${target}"
+    echo ""
+
+    do_update "${target}"
+
+    show_post_update_info "${target}"
+
+    echo ""
+    log_ok "全部完成 ✅"
+    echo ""
+}
+
+main "$@"
+
+

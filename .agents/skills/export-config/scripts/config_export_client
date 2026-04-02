@@ -1,0 +1,7 @@
+#!/bin/bash
+# 更新客户端配置，开发环境
+
+cd ../../config
+svn update .
+cd ./导出工具
+make client
