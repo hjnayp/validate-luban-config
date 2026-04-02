@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vitest";
-import {cfg_mgr, tb} from "../../src/tb";
+import {cfg_mgr, tb} from "../infra/tb";
 
 describe("配置加载冒烟测试", () => {
     it("应当可以初始化并拿到 tables 实例", () => {

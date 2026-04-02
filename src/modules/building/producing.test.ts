@@ -1,6 +1,6 @@
 import {beforeAll, describe, it} from "vitest";
 import * as O from "fp-ts/Option";
-import {cfg_mgr, tb} from "../../../src/tb";
+import {cfg_mgr, tb} from "../../infra/tb";
 import {base, building, work} from "../../../gen/schema";
 import {assert_no_errors} from "../../infra/assert";
 import {check_equip_exist, check_hero_exist, check_item_exist} from "../../infra/config_asserts";

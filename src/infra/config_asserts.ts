@@ -1,4 +1,4 @@
-import {tb} from "../../src/tb"
+import {tb} from "./tb"
 import * as O from "fp-ts/Option";
 
 export const check_item_exist = (item_id: string): O.Option<string> =>

@@ -1,6 +1,6 @@
 import {existsSync, readFileSync} from "node:fs";
 import {resolve} from "node:path";
-import * as jsonCfg from "../gen/schema";
+import * as jsonCfg from "../../gen/schema";
 
 export let tb: jsonCfg.Tables | undefined;
 const datas = new Map<string, unknown>();

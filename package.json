@@ -7,7 +7,7 @@
   "type": "commonjs",
   "main": "index.js",
   "scripts": {
-    "start": "tools/run_test",
+    "start": "./start_validate",
     "test": "vitest run",
     "test:watch": "vitest"
   },
