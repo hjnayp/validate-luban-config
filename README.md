@@ -38,26 +38,7 @@ npm test
 
 ## 测试覆盖
 
-### 建筑产出规则校验
-
-文件：`src/modules/building/producing.test.ts`
-
-启动前会先执行 `cfg_mgr.init_load_all_files()` 加载全量配置，随后按规则收集错误并统一断言。当前包含 8 条规则：
-
-1. 采集区产物类型必须是道具
-2. 生产区产物类型必须是道具/装备
-3. 募兵营产物类型必须是军团
-4. 所有产物生产 CD 必须大于 0
-5. 所有产物消耗必须存在且数量大于 0
-6. 道具类产物的 `product_id` 必须存在于道具表
-7. 装备类产物的 `product_id` 必须存在于装备表
-8. 军团类产物的 `product_id` 必须存在于军团表
-
-### 配置加载冒烟测试
-
-文件：`src/modules/tb.test.ts`
-
-验证配置初始化与 `tb` 表实例可用性。
+测试覆盖说明已迁移到文档目录，请查看：[`doc/testing-coverage.md`](doc/testing-coverage.md)。
 
 ## 关键实现约定
 
