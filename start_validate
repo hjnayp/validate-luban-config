@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-WORKSPACE=../../config
+WORKSPACE=../config
 LUBAN_DLL=$WORKSPACE/导出工具/luban-bin/Luban.dll
 
 CONF_ROOT=$WORKSPACE
