@@ -1,22 +1,86 @@
-# validate (TypeScript init)
+# validate
+
+配置导出与规则校验项目，基于 TypeScript + Vitest。
+
+## 环境要求
+
+- Node.js（建议 LTS）
+- npm
+- （运行 `npm start` 时需要）`.NET` 运行时，用于执行 `Luban.dll`
 
 ## 快速开始
 
 ```bash
 npm install
-npm run index
 npm test
 ```
 
-## 测试说明
+当前仓库已包含 `gen/schema.ts` 与 `gen/json/`，可直接执行测试。
 
-- 使用 `vitest` 作为 TypeScript 测试框架。
-- `npm test` 会先执行 `pretest`，即自动运行 `npm run index`。
-- 单次执行测试：`npm test`
-- 监听模式：`npm run test:watch`
+## 常用命令
 
-## 说明
+- `npm test`：执行全部校验测试（`vitest run`）
+- `npm run test:watch`：监听模式运行测试
+- `npm start`：执行 `./start_validate`
+  - 使用 Luban 导出 `gen` 与 `gen/json`
+  - 导出成功后自动执行 `npm run test`
 
-- `tsconfig.json` 已完成初始化并默认编译 `src/**/*.ts`。
-- `gen/` 是自动生成目录，目前未纳入默认类型检查范围，避免初始化阶段被历史生成代码阻塞。
-- 如需检查 `gen/`，可在修复生成类型问题后再调整 `include`/`exclude`。
+## start_validate 流程
+
+`start_validate` 使用 `set -euo pipefail`，任一阶段失败会立即停止，避免“前置失败但后续继续执行”。
+
+默认依赖路径：
+
+- 工作区：`../config`
+- Luban：`../config/导出工具/luban-bin/Luban.dll`
+- 导出代码目录：`gen`
+- 导出数据目录：`gen/json`
+
+## 测试覆盖
+
+### 建筑产出规则校验
+
+文件：`src/modules/building/producing.test.ts`
+
+启动前会先执行 `cfg_mgr.init_load_all_files()` 加载全量配置，随后按规则收集错误并统一断言。当前包含 8 条规则：
+
+1. 采集区产物类型必须是道具
+2. 生产区产物类型必须是道具/装备
+3. 募兵营产物类型必须是军团
+4. 所有产物生产 CD 必须大于 0
+5. 所有产物消耗必须存在且数量大于 0
+6. 道具类产物的 `product_id` 必须存在于道具表
+7. 装备类产物的 `product_id` 必须存在于装备表
+8. 军团类产物的 `product_id` 必须存在于军团表
+
+### 配置加载冒烟测试
+
+文件：`src/modules/tb.test.ts`
+
+验证配置初始化与 `tb` 表实例可用性。
+
+## 关键实现约定
+
+- `src/infra/config_asserts.ts`：存在性校验返回 `Option<string>`（`none` 通过，`some` 为错误原因）
+- `src/infra/option.ts`：`option_to_errors` 统一将 `Option<string>` 转为错误列表
+- `src/infra/assert.ts`：使用“错误列表 + 一次性断言”输出完整失败信息
+- `src/infra/tb.ts`：优先读取 `src/infra/json/*.json`，不存在时回退到 `gen/json/*.json`
+
+## 目录结构
+
+```text
+src/
+  infra/
+    assert.ts
+    config_asserts.ts
+    option.ts
+    tb.ts
+  modules/
+    tb.test.ts
+    building/
+      producing.test.ts
+gen/
+  schema.ts
+  json/
+start_validate
+```
