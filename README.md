@@ -2,6 +2,8 @@
 
 配置导出与规则校验项目，基于 TypeScript + Vitest。
 
+> 本仓库作为 `web-pannel` 的子 Git 仓库使用，路径为 `web-pannel/validate`。
+
 ## 环境要求
 
 - Node.js（建议 LTS）

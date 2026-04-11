@@ -1,27 +1,28 @@
 # AGENTS
 
-## 模块说明
+> 面向 AI 编程助手的 validate 子仓上下文（由主仓 `web-pannel` 引用）。
 
-### test/modules/building/producing.test.ts
-- 负责建筑产出配置的规则校验，覆盖产品类型、生产 CD、消耗合法性、道具/装备/军团产物存在性四类约束。
-- 测试数据来源于 `cfg_mgr.init_load_all_files()` 之后的全量配置缓存。
-- 校验函数采用纯函数拆分，每条规则保留独立 `it`，在可读性与复用性间保持平衡。
+## 项目定位
 
-### test/infra/option.ts
-- 提供 `Option<string>` 到错误列表的纯函数转换工具，统一规则层对 `none/some` 的处理方式。
+配置导出与规则校验子项目，技术栈为 TypeScript + Vitest。
 
-### tools/run_test
-- 负责执行配置导出与测试串联流程；脚本启用 `set -euo pipefail`，确保任一阶段失败后立即停止。
+## 实际目录与关键文件
 
-## 任务经验
-- 将重复的过滤/格式化逻辑抽到独立纯函数后，测试可读性和维护性显著提升。
-- 对 `Map`/`Iterator` 统一使用 `Array.from(...)` 转换，可避免运行时对 Iterator Helper 的依赖。
-- 规则型测试建议采用“收集错误列表 + 统一断言”模式，能一次性输出全部失败信息，定位更高效。
-- 对会抛出断言异常的校验（如 `assert_item_exist`），建议在收集阶段捕获并转为错误字符串，避免一次失败中断整批扫描。
-- 产物存在性校验应按 `RewardType` 分流到对应断言（`assert_item_exist`/`assert_equip_exist`/`assert_hero_exist`），避免混用同一张表导致误判。
-- 当团队更重视可读性时，推荐“纯函数复用 + 单规则单 `it`”模式，降低阅读和定位门槛。
-- 为了避免在错误收集函数中使用 `try/catch`，存在性断言可改为纯布尔函数，并由规则层统一拼装错误信息。
-- 进一步可将存在性断言升级为 `Option<string>`：`none` 表示通过，`some` 承载错误原因，规则层统一过滤 `none` 后输出错误列表。
-- `Option<string>` 的 `none/some` 过滤逻辑建议抽到 infra 公共函数，避免各规则重复实现分支判断。
-- 脚本编排场景建议默认开启 `set -euo pipefail`，避免前置命令失败后误继续执行后续步骤。
+- `src/modules/building/producing.test.ts`：建筑产出规则校验
+- `src/modules/tb.test.ts`：配置表基础校验
+- `src/infra/config_asserts.ts`：配置断言与存在性校验
+- `src/infra/option.ts`：`Option<string>` 到错误列表转换
+- `src/infra/tb.ts`：读取配置 JSON（优先 `src/infra/json`，回退 `gen/json`）
+- `start_validate`：Luban 导出 + 测试串联脚本（`set -euo pipefail`）
 
+## 常用命令
+
+- `npm test`：执行全部规则校验
+- `npm run test:watch`：监听模式
+- `npm start`：执行导出并在成功后跑测试
+
+## 约定
+
+- 规则型测试优先“收集错误列表 + 统一断言”，确保一次输出完整失败信息。
+- 对 `Map`/`Iterator` 结果统一 `Array.from(...)`，避免依赖 Iterator Helper 运行时特性。
+- 公共过滤逻辑抽到 infra 层，避免在各规则文件重复实现。
