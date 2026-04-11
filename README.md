@@ -4,6 +4,11 @@
 
 > 本仓库作为 `web-pannel` 的子 Git 仓库使用，路径为 `web-pannel/validate`。
 
+## 主仓文档导航
+
+- 主仓文档导航页（GitHub）：<https://github.com/hjnayp/web-pannel/blob/master/docs/documentation-map.md>
+- 在主仓工作区中可直接打开：`../docs/documentation-map.md`
+
 ## 环境要求
 
 - Node.js（建议 LTS）
