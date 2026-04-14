@@ -90,12 +90,14 @@ const collect_products = (): ReadonlyArray<ProductRecord> =>
                 }))
         );
 
+const ERROR_SOURCE_EXCEL = "建筑生产@J-建筑.xlsx";
+
 const collect_item_product_exist_errors = (products: ReadonlyArray<ProductRecord>): ReadonlyArray<string> =>
     products
         .filter((product) => product.config.productType === RewardType.Item)
         .flatMap((product) =>
             option_to_errors(check_item_exist(product.product_id))
-                .map((reason) => format_product_item_error(product, reason))
+                .map((reason) => format_error_with_source(format_product_item_error(product, reason), ERROR_SOURCE_EXCEL))
         );
 
 const collect_equip_product_exist_errors = (products: ReadonlyArray<ProductRecord>): ReadonlyArray<string> =>
@@ -103,7 +105,7 @@ const collect_equip_product_exist_errors = (products: ReadonlyArray<ProductRecor
         .filter((product) => product.config.productType === RewardType.Equip)
         .flatMap((product) =>
             option_to_errors(check_equip_exist(product.product_id))
-                .map((reason) => format_product_equip_error(product, reason))
+                .map((reason) => format_error_with_source(format_product_equip_error(product, reason), ERROR_SOURCE_EXCEL))
         );
 
 const collect_hero_product_exist_errors = (products: ReadonlyArray<ProductRecord>): ReadonlyArray<string> =>
@@ -111,7 +113,7 @@ const collect_hero_product_exist_errors = (products: ReadonlyArray<ProductRecord
         .filter((product) => product.config.productType === RewardType.Hero)
         .flatMap((product) =>
             option_to_errors(check_hero_exist(product.product_id))
-                .map((reason) => format_product_hero_error(product, reason))
+                .map((reason) => format_error_with_source(format_product_hero_error(product, reason), ERROR_SOURCE_EXCEL))
         );
 
 const collect_type_errors = (
@@ -124,20 +126,22 @@ const collect_type_errors = (
         .flatMap((product) =>
             allowed_types.has(product.config.productType as RewardType)
                 ? []
-                : [format_type_error(product)]
+                : [format_error_with_source(format_type_error(product), ERROR_SOURCE_EXCEL)]
         );
 
 const collect_cd_errors = (products: ReadonlyArray<ProductRecord>): ReadonlyArray<string> =>
     products.flatMap((product) => {
         if (product.config.productType !== RewardType.Equip) {
-            return product.config.produceCd > 0 ? [] : [format_cd_error(product)];
+            return product.config.produceCd > 0
+                ? []
+                : [format_error_with_source(format_cd_error(product), ERROR_SOURCE_EXCEL)];
         }
 
         const produce_group = tb.TbBuildingProduceGroup.get(product.config.produceGroup);
         return Array.from(produce_group.config.values())
             .map((bean) => bean.produceCd)
             .filter((produce_cd) => produce_cd <= 0)
-            .map(() => format_cd_error(product));
+            .map(() => format_error_with_source(format_cd_error(product), ERROR_SOURCE_EXCEL));
     });
 
 const collect_cost_errors = (products: ReadonlyArray<ProductRecord>): ReadonlyArray<string> =>
@@ -145,33 +149,36 @@ const collect_cost_errors = (products: ReadonlyArray<ProductRecord>): ReadonlyAr
         if (product.config.productType !== RewardType.Equip) {
             return Array.from(product.config.produceCost.entries())
                 .flatMap(([item_id, cost]) => {
-                    const item_exist_error = check_item_exist(item_id);
-                    if (O.isSome(item_exist_error)) {
-                        return [format_cost_item_not_exist_error(product, item_id, item_exist_error.value)];
+            const item_exist_error = check_item_exist(item_id);
+            if (O.isSome(item_exist_error)) {
+                        return [format_error_with_source(format_cost_item_not_exist_error(product, item_id, item_exist_error.value), ERROR_SOURCE_EXCEL)];
                     }
 
-                    return cost <= 0 ? [format_cost_error(product, item_id, cost)] : [];
+                    return cost <= 0 ? [format_error_with_source(format_cost_error(product, item_id, cost), ERROR_SOURCE_EXCEL)] : [];
                 });
         }
 
         const produce_group = tb.TbBuildingProduceGroup.get(product.config.produceGroup);
         return Array.from(produce_group.config.values()).flatMap((bean) => {
-            const cost_dict = bean.produceCost;
+                const cost_dict = bean.produceCost;
             if (cost_dict.size <= 0) {
-                return [format_cost_empty_error(product)];
+            return [format_error_with_source(format_cost_empty_error(product), ERROR_SOURCE_EXCEL)];
             }
 
             return Array.from(cost_dict.entries())
                 .flatMap(([item_id, cost]) => {
-                    const item_exist_error = check_item_exist(item_id);
-                    if (O.isSome(item_exist_error)) {
-                        return [format_cost_item_not_exist_error(product, item_id, item_exist_error.value)];
+                const item_exist_error = check_item_exist(item_id);
+                if (O.isSome(item_exist_error)) {
+                        return [format_error_with_source(format_cost_item_not_exist_error(product, item_id, item_exist_error.value), ERROR_SOURCE_EXCEL)];
                     }
 
-                    return cost <= 0 ? [format_cost_zero_error(product, item_id)] : [];
+                    return cost <= 0 ? [format_error_with_source(format_cost_zero_error(product, item_id), ERROR_SOURCE_EXCEL)] : [];
                 });
         });
     });
+
+const format_error_with_source = (message: string, source_file: string): string =>
+    `excel=${source_file}, ${message}`;
 
 describe("建筑配置校验", () => {
     let products: ReadonlyArray<ProductRecord>;
