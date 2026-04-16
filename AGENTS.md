@@ -26,3 +26,4 @@
 - 规则型测试优先“收集错误列表 + 统一断言”，确保一次输出完整失败信息。
 - 对 `Map`/`Iterator` 结果统一 `Array.from(...)`，避免依赖 Iterator Helper 运行时特性。
 - 公共过滤逻辑抽到 infra 层，避免在各规则文件重复实现。
+- 详细规则写法、错误格式、开发范例和主仓工具箱衔接见 `doc/ai-maintenance.md`；当前规则覆盖见 `doc/testing-coverage.md`。

@@ -8,6 +8,7 @@
 
 - 主仓文档导航页（GitHub）：<https://github.com/hjnayp/web-pannel/blob/master/docs/documentation-map.md>
 - 在主仓工作区中可直接打开：`../docs/documentation-map.md`
+- 本仓 AI 维护手册：[`doc/ai-maintenance.md`](doc/ai-maintenance.md)
 
 ## 环境要求
 
