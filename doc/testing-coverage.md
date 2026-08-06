@@ -23,6 +23,22 @@
 
 1. `TbChargeShop` 中免费商品（`buyType=Free`）不允许配置为无限购买（`limitCnt <= 0`）
 
+## 模型资源规则校验
+
+文件：`src/modules/model-resource.test.ts`
+
+当前包含 1 条规则：
+
+1. `TbHeroModel` 中每个 `model` 指向的 Spine 资源必须存在
+
+## 错误定位
+
+规则错误会尽量输出源 Excel 定位信息：
+
+```text
+excel=来源表@文件.xlsx, sheet=Sheet名, row=行号, cell=单元格, field=字段名
+```
+
 ## 配置加载冒烟测试
 
 文件：`src/modules/tb.test.ts`

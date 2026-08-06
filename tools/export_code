@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+CONFIG_ROOT="${CONFIG_ROOT:-"$SCRIPT_DIR/../../config"}"
+GENERATOR="$CONFIG_ROOT/导出工具/gen.py"
+PYTHON_BIN="${PYTHON_BIN:-python3}"
+
+if [[ ! -f "$GENERATOR" ]]; then
+    echo "未找到 Luban 导出脚本：$GENERATOR" >&2
+    echo "请设置 CONFIG_ROOT 指向 config 仓库根目录。" >&2
+    exit 1
+fi
+
+"$PYTHON_BIN" "$GENERATOR" \
+    --target server \
+    --code go-json \
+    -x lubanGoModule=modules/go \
+    --conf ../luban_conf_code.conf
+
+"$PYTHON_BIN" "$GENERATOR" \
+    --target client \
+    --code typescript-json \
+    --lan zh \
+    --ignoreUI

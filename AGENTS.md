@@ -13,13 +13,15 @@
 - `src/infra/config_asserts.ts`：配置断言与存在性校验
 - `src/infra/option.ts`：`Option<string>` 到错误列表转换
 - `src/infra/tb.ts`：读取配置 JSON（优先 `src/infra/json`，回退 `gen/json`）
-- `start_validate`：Luban 导出 + 测试串联脚本（`set -euo pipefail`）
+- `start_validate`：规则校验串联脚本（`set -euo pipefail`）
+- `export_code`：Luban 服务端、客户端代码导出脚本
 
 ## 常用命令
 
 - `npm test`：执行全部规则校验
 - `npm run test:watch`：监听模式
-- `npm start`：执行导出并在成功后跑测试
+- `npm start`：执行全部规则校验，不重新导出 JSON
+- `npm run export:code`：导出服务端和客户端代码
 
 ## 约定
 

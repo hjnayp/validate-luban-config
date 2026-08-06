@@ -12,16 +12,17 @@
 
 ## 项目定位
 
-`validate` 是 `web-pannel` 的配置校验子项目，技术栈是 TypeScript + Vitest。它有两种运行方式：
+`validate` 是 `web-pannel` 的配置校验子项目，技术栈是 TypeScript + Vitest。它有三种常用运行方式：
 
 - `npm test`：直接读取已有 `gen/schema.ts` 和 `gen/json/*.json`，执行规则测试。
-- `npm start`：先运行 `start_validate` 调 Luban 导出，再执行 `npm run test`。
+- `npm start`：运行 `start_validate`，直接执行 `npm run test`，不导出 JSON。
+- `npm run export:code`：运行 `export_code`，分别导出服务端和客户端代码。
 
 主仓工具箱的「校验配置」最终会通过 `panel-server` 调用本仓的 `npm start`。
 
 本仓负责：
 
-- 调用 Luban 生成 TypeScript schema 和 JSON。
+- 调用 Luban 导出服务端 Go 和客户端 TypeScript 代码。
 - 加载配置表 JSON。
 - 编写规则型测试。
 - 输出策划能看懂的错误信息。
@@ -37,12 +38,14 @@
 
 | 路径 | 说明 |
 |---|---|
-| `start_validate` | Luban 导出 + 测试串联脚本 |
+| `start_validate` | 规则测试串联脚本，不重新导出 JSON |
+| `export_code` | 服务端、客户端 Luban 代码导出脚本 |
 | `gen/schema.ts` | Luban 生成的 TS 类型和表访问器 |
 | `gen/json/` | Luban 生成的配置 JSON |
 | `src/infra/tb.ts` | 配置加载入口 |
 | `src/infra/assert.ts` | 错误列表统一断言 |
 | `src/infra/config_asserts.ts` | 跨规则复用的存在性和资源检查 |
+| `src/infra/excel_source.ts` | 从源 xlsx 反查 `sheet/row/cell`，用于错误定位 |
 | `src/infra/option.ts` | `Option<string>` 到错误列表转换 |
 | `src/infra/log.ts` | 错误格式化 |
 | `src/modules/tb.test.ts` | 配置加载冒烟测试 |
@@ -55,13 +58,16 @@
 
 `npm start` 流程：
 
-1. `start_validate` 使用 `set -euo pipefail`，任何阶段失败都停止。
-2. 默认工作区是 `../../config`。
-3. Luban 路径是 `../../config/导出工具/luban-bin/Luban.dll`。
-4. 执行 `dotnet $LUBAN_DLL ...`。
-5. 输出代码到 `gen`。
-6. 输出数据到 `gen/json`。
-7. 执行 `npm run test`。
+1. `start_validate` 使用 `set -euo pipefail`。
+2. 执行 `npm run test`。
+3. 使用仓库内已有的 `gen/schema.ts` 与 `gen/json/*.json`。
+
+`npm run export:code` 流程：
+
+1. `export_code` 使用 `set -euo pipefail`。
+2. 调用 `config/导出工具/gen.py` 导出服务端 `go-json` 代码。
+3. 调用同一脚本导出客户端 `typescript-json` 代码。
+4. 不导出 JSON 数据。
 
 `npm test` 流程：
 
@@ -107,10 +113,11 @@ JSON 读取优先级：
 8. 军团类产物的 `product_id` 必须存在于军团表。
 9. 装备类产物走 `TbBuildingProduceGroup` 展开检查 CD 和消耗。
 
-错误来源：
+错误来源会定位到源 Excel 行：
 
 ```text
-excel=建筑生产@J-建筑.xlsx
+excel=建筑生产@J-建筑.xlsx, sheet=建筑生产, row=7, cell=F7
+excel=生产组@J-建筑.xlsx, sheet=生产组, row=6, cell=E6
 ```
 
 ### 充值商店
@@ -121,10 +128,10 @@ excel=建筑生产@J-建筑.xlsx
 
 - `TbChargeShop` 中免费商品（`buyType=Free`）不允许配置为无限购买，即 `limitCnt <= 0` 必须报错。
 
-错误来源：
+错误来源会定位到源 Excel 行：
 
 ```text
-excel=商品配置@C-充值商店.xlsx
+excel=商品配置@C-充值商店.xlsx, sheet=商品配置, row=8, cell=I8
 ```
 
 ### 模型资源
@@ -154,10 +161,10 @@ excel=商品配置@C-充值商店.xlsx
 - model 是目录时，允许目录内任意 json/skel + atlas/atlas.txt + png。
 - model 是目录时，也允许目录名同名三件套。
 
-错误来源：
+错误来源会定位到源 Excel 行：
 
 ```text
-excel=模型@M-模型配置.xlsx
+excel=模型@M-模型配置.xlsx, sheet=模型, row=107, cell=D107
 ```
 
 ## 规则编写原则
@@ -221,7 +228,7 @@ describe("示例配置校验", () => {
 面向用户的错误尽量用这个格式：
 
 ```text
-excel=来源表@文件.xlsx, id=123, name=名称, reason=具体原因
+excel=来源表@文件.xlsx, sheet=Sheet名, row=123, cell=D123, field=字段名, id=123, name=名称, reason=具体原因
 ```
 
 为什么要带 `excel=`：
@@ -233,6 +240,7 @@ excel=来源表@文件.xlsx, id=123, name=名称, reason=具体原因
 错误内容建议包含：
 
 - Excel 来源。
+- 源表定位：`sheet`、`row`、能定位字段的 `cell`、字段名 `field`。
 - 领域 ID，例如 building、gift、hero_model_id。
 - 可读名称，例如 `gift=1001(免费礼包)`。
 - 当前非法值。
@@ -244,6 +252,16 @@ excel=来源表@文件.xlsx, id=123, name=名称, reason=具体原因
 - 输出堆栈或英文内部错误给策划。
 - 一个断言只报第一条错误。
 - 错误里只给数组 index，不给业务 ID。
+
+## Excel 行定位
+
+规则错误需要尽量通过 `src/infra/excel_source.ts` 反查源表行号：
+
+- 普通一行一条配置：使用 `build_excel_row_index_by_key(...)`。
+- Luban map 展开成多行：使用 `build_excel_row_index_by_composite_key(...)`，并用 `make_excel_row_key(parent, child)` 查找具体子行。
+- 输出来源用 `format_excel_error_source(...)`，保持每条用户错误以 `excel=` 开头，方便主仓抽取和分组。
+- `data_start_row` 应跳过 Luban 的 `##var`、`##type`、`##group`、说明行。
+- 如果源 xlsx 暂时读不到，helper 会返回空索引；规则仍应继续输出业务 ID 和原因，不要因为定位失败吞掉校验错误。
 
 ## `Option<string>` 约定
 
