@@ -152,6 +152,18 @@ const read_xlsx_entry = (excel_path: string, entry_path: string): string | undef
     }
 };
 
+const xlsx_entry_exists = (excel_path: string, entry_path: string): boolean | undefined => {
+    try {
+        const entries = execFileSync("unzip", ["-Z1", excel_path], {
+            encoding: "utf-8",
+            maxBuffer: 32 * 1024 * 1024,
+        });
+        return entries.split(/\r?\n/u).includes(entry_path);
+    } catch {
+        return undefined;
+    }
+};
+
 const read_worksheet_for_index = (
     options: ExcelRowIndexOptions | ExcelCompositeRowIndexOptions,
 ): Readonly<{
@@ -236,7 +248,12 @@ const normalize_workbook_target = (target: string): string =>
         : posix.normalize(posix.join("xl", target));
 
 const read_shared_strings = (excel_path: string): ReadonlyArray<string> => {
-    const shared_strings_xml = read_xlsx_entry(excel_path, "xl/sharedStrings.xml");
+    const entry_path = "xl/sharedStrings.xml";
+    if (xlsx_entry_exists(excel_path, entry_path) === false) {
+        return [];
+    }
+
+    const shared_strings_xml = read_xlsx_entry(excel_path, entry_path);
     if (!shared_strings_xml) {
         return [];
     }

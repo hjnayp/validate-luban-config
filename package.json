@@ -9,6 +9,8 @@
   "scripts": {
     "start": "tools/start_validate",
     "export:code": "tools/export_code",
+    "validate:export": "tools/validate_export_snapshot",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
   },

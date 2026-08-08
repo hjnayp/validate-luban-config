@@ -42,7 +42,7 @@ const collect_infinite_free_goods_errors = (
 ): ReadonlyArray<string> =>
     goods_list.flatMap((goods) => {
         if (goods.buy_type !== chargershop.GiftBuyType.Free) return [];
-        return goods.limit_cnt <= 0 ? [format_infinite_free_error(goods)] : [];
+        return goods.limit_cnt < 0 ? [format_infinite_free_error(goods)] : [];
     });
 
 describe("充值商店配置校验", () => {

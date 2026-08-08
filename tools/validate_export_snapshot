@@ -1,0 +1,220 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
+CONFIG_ROOT="${CONFIG_ROOT:-"$PROJECT_ROOT/../../config"}"
+if [[ ! -d "$CONFIG_ROOT" ]]; then
+    echo "配置根目录不存在：$CONFIG_ROOT" >&2
+    exit 1
+fi
+CONFIG_ROOT="$(cd -- "$CONFIG_ROOT" && pwd)"
+GENERATOR_SOURCE="$CONFIG_ROOT/导出工具/gen.py"
+PYTHON_BIN="${PYTHON_BIN:-python3}"
+GEN_CACHE="$PROJECT_ROOT/gen"
+CATTIE_ROOT="${CATTIE_ROOT:-"$PROJECT_ROOT/../../client/cattie"}"
+
+if [[ ! -f "$GENERATOR_SOURCE" ]]; then
+    echo "未找到 Luban 导出脚本：$GENERATOR_SOURCE" >&2
+    echo "请设置 CONFIG_ROOT 指向 config 仓库根目录。" >&2
+    exit 1
+fi
+
+if [[ ! -f "$CONFIG_ROOT/导出工具/sync_git_hooks.py" || ! -d "$CONFIG_ROOT/导出工具/luban-bin" ]]; then
+    echo "Luban 导出工具依赖不完整：$CONFIG_ROOT/导出工具" >&2
+    exit 1
+fi
+
+if [[ "$PROJECT_ROOT" == "/" || ! -d "$PROJECT_ROOT/src" || ! -f "$PROJECT_ROOT/package.json" ]]; then
+    echo "拒绝从未验证的项目目录执行：$PROJECT_ROOT" >&2
+    exit 1
+fi
+
+if [[ "$GEN_CACHE" != "$PROJECT_ROOT/gen" || -L "$GEN_CACHE" ]]; then
+    echo "拒绝提升到未验证的生成缓存目录：$GEN_CACHE" >&2
+    exit 1
+fi
+
+if [[ -e "$GEN_CACHE" && ! -d "$GEN_CACHE" ]]; then
+    echo "生成缓存目标不是目录：$GEN_CACHE" >&2
+    exit 1
+fi
+
+if [[ ! -d "$PROJECT_ROOT/node_modules" ]]; then
+    echo "未找到依赖目录：$PROJECT_ROOT/node_modules，请先安装依赖。" >&2
+    exit 1
+fi
+
+if [[ ! -d "$CATTIE_ROOT/assets" ]]; then
+    echo "未找到客户端资源目录：$CATTIE_ROOT/assets，请设置 CATTIE_ROOT。" >&2
+    exit 1
+fi
+CATTIE_ROOT="$(cd -- "$CATTIE_ROOT" && pwd)"
+
+LOCK_DIR="$PROJECT_ROOT/.validate-export.lock"
+if ! mkdir -- "$LOCK_DIR"; then
+    echo "已有配置导出校验正在运行，或存在未清理的锁：$LOCK_DIR" >&2
+    exit 1
+fi
+
+WORK_ROOT=""
+SNAPSHOT_ROOT=""
+SOURCE_MANIFEST=""
+VALIDATION_ROOT=""
+ISOLATED_CONFIG_ROOT=""
+LUBAN_LOG=""
+PUBLISH_ROOT=""
+PUBLISH_PREVIOUS=""
+GEN_CACHE_MOVED=0
+
+cleanup() {
+    local restore_failed=0
+    if [[ "$GEN_CACHE_MOVED" == "1" && ! -e "$GEN_CACHE" && -d "$PUBLISH_PREVIOUS" ]]; then
+        if ! mv -- "$PUBLISH_PREVIOUS" "$GEN_CACHE"; then
+            restore_failed=1
+            echo "自动恢复原生成缓存失败，备份保留在：$PUBLISH_PREVIOUS" >&2
+        fi
+    fi
+    if [[ -n "$WORK_ROOT" ]]; then
+        rm -rf -- "$WORK_ROOT"
+    fi
+    if [[ -n "$PUBLISH_ROOT" && "$restore_failed" == "0" ]]; then
+        rm -rf -- "$PUBLISH_ROOT"
+    fi
+    if [[ "$restore_failed" == "0" ]]; then
+        rmdir -- "$LOCK_DIR" 2>/dev/null || true
+    fi
+}
+trap cleanup EXIT
+
+WORK_ROOT="$(mktemp -d)"
+SNAPSHOT_ROOT="$WORK_ROOT/snapshot"
+SOURCE_MANIFEST="$WORK_ROOT/source-manifest.json"
+VALIDATION_ROOT="$WORK_ROOT/validation-project"
+ISOLATED_CONFIG_ROOT="$WORK_ROOT/config"
+LUBAN_LOG="$WORK_ROOT/luban.log"
+
+mkdir -p "$SNAPSHOT_ROOT/json"
+mkdir -p "$ISOLATED_CONFIG_ROOT/导出工具"
+
+cd -- "$PROJECT_ROOT"
+
+npm exec -- tsx src/cli/snapshot_manifest.ts capture \
+    --config-root "$CONFIG_ROOT" \
+    --output "$SOURCE_MANIFEST"
+
+rsync -a "$CONFIG_ROOT/defines" "$ISOLATED_CONFIG_ROOT/"
+rsync -a "$CONFIG_ROOT/配置表" "$ISOLATED_CONFIG_ROOT/"
+rsync -a "$CONFIG_ROOT/errorcode" "$ISOLATED_CONFIG_ROOT/"
+rsync -a "$CONFIG_ROOT/l10n" "$ISOLATED_CONFIG_ROOT/"
+cp -- "$CONFIG_ROOT/luban_conf.conf" "$ISOLATED_CONFIG_ROOT/luban_conf.conf"
+cp -- "$GENERATOR_SOURCE" "$ISOLATED_CONFIG_ROOT/导出工具/gen.py"
+cp -- "$CONFIG_ROOT/导出工具/sync_git_hooks.py" "$ISOLATED_CONFIG_ROOT/导出工具/sync_git_hooks.py"
+ln -s -- "$CONFIG_ROOT/导出工具/luban-bin" "$ISOLATED_CONFIG_ROOT/导出工具/luban-bin"
+
+npm exec -- tsx src/cli/snapshot_manifest.ts verify \
+    --config-root "$ISOLATED_CONFIG_ROOT" \
+    --manifest "$SOURCE_MANIFEST"
+
+GENERATOR="$ISOLATED_CONFIG_ROOT/导出工具/gen.py"
+set +e
+"$PYTHON_BIN" "$GENERATOR" \
+    --target all \
+    --data json \
+    --code typescript-json \
+    --lan zh \
+    --ignoreUI \
+    --publish \
+    --clientDataOutput "$SNAPSHOT_ROOT/json" \
+    --clientCodeOutput "$SNAPSHOT_ROOT" 2>&1 | tee "$LUBAN_LOG"
+GENERATOR_STATUS="${PIPESTATUS[0]}"
+set -e
+if [[ "$GENERATOR_STATUS" != "0" ]]; then
+    echo "Luban fresh 导出失败：exit=$GENERATOR_STATUS" >&2
+    exit "$GENERATOR_STATUS"
+fi
+LUBAN_ERROR_COUNT="$(grep -c '|ERROR|' "$LUBAN_LOG" || true)"
+
+npm exec -- tsx src/cli/snapshot_manifest.ts verify \
+    --config-root "$CONFIG_ROOT" \
+    --manifest "$SOURCE_MANIFEST"
+
+cp -- "$SOURCE_MANIFEST" "$SNAPSHOT_ROOT/validation-manifest.json"
+
+mkdir -p "$VALIDATION_ROOT"
+rsync -a \
+    --exclude .git \
+    --exclude gen \
+    --exclude node_modules \
+    "$PROJECT_ROOT/" "$VALIDATION_ROOT/"
+ln -s -- "$PROJECT_ROOT/node_modules" "$VALIDATION_ROOT/node_modules"
+mkdir -p "$VALIDATION_ROOT/gen"
+rsync -a "$SNAPSHOT_ROOT/" "$VALIDATION_ROOT/gen/"
+
+cd -- "$VALIDATION_ROOT"
+CONFIG_ROOT="$CONFIG_ROOT" \
+CATTIE_ROOT="$CATTIE_ROOT" \
+LUBAN_CONFIG_SNAPSHOT_JSON_ROOT="$VALIDATION_ROOT/gen/json" \
+LUBAN_CONFIG_SNAPSHOT_MANIFEST="$VALIDATION_ROOT/gen/validation-manifest.json" \
+npm run typecheck
+
+CONFIG_ROOT="$CONFIG_ROOT" \
+CATTIE_ROOT="$CATTIE_ROOT" \
+LUBAN_CONFIG_SNAPSHOT_JSON_ROOT="$VALIDATION_ROOT/gen/json" \
+LUBAN_CONFIG_SNAPSHOT_MANIFEST="$VALIDATION_ROOT/gen/validation-manifest.json" \
+npm test
+
+if [[ "$LUBAN_ERROR_COUNT" != "0" ]]; then
+    echo "Luban fresh 导出包含 ERROR 日志：count=$LUBAN_ERROR_COUNT，拒绝提升缓存。" >&2
+    exit 1
+fi
+
+cd -- "$PROJECT_ROOT"
+npm exec -- tsx src/cli/snapshot_manifest.ts verify \
+    --config-root "$CONFIG_ROOT" \
+    --manifest "$SOURCE_MANIFEST"
+
+if [[ ! -f "$SNAPSHOT_ROOT/schema.ts" \
+    || ! -d "$SNAPSHOT_ROOT/json" \
+    || ! -f "$SNAPSHOT_ROOT/validation-manifest.json" ]]; then
+    echo "fresh snapshot 不完整，拒绝提升到生成缓存：$SNAPSHOT_ROOT" >&2
+    exit 1
+fi
+
+if [[ "$PROJECT_ROOT" == "/" \
+    || "$GEN_CACHE" != "$PROJECT_ROOT/gen" \
+    || -L "$GEN_CACHE" \
+    || (-e "$GEN_CACHE" && ! -d "$GEN_CACHE") ]]; then
+    echo "提升前生成缓存目标校验失败：$GEN_CACHE" >&2
+    exit 1
+fi
+
+PUBLISH_ROOT="$(mktemp -d "$PROJECT_ROOT/.validate-gen-publish.XXXXXX")"
+PUBLISH_NEXT="$PUBLISH_ROOT/next"
+PUBLISH_PREVIOUS="$PUBLISH_ROOT/previous"
+mkdir -- "$PUBLISH_NEXT"
+rsync -a --delete "$SNAPSHOT_ROOT/" "$PUBLISH_NEXT/"
+
+# staging 完成后把源变更窗口压到目录切换前；无协作锁时无法阻止校验后的外部编辑，
+# 但提升后的 manifest 仍会让后续 npm test 对任何源漂移 fail closed。
+npm exec -- tsx src/cli/snapshot_manifest.ts verify \
+    --config-root "$CONFIG_ROOT" \
+    --manifest "$SOURCE_MANIFEST"
+
+if [[ -d "$GEN_CACHE" ]]; then
+    mv -- "$GEN_CACHE" "$PUBLISH_PREVIOUS"
+    GEN_CACHE_MOVED=1
+fi
+if ! mv -- "$PUBLISH_NEXT" "$GEN_CACHE"; then
+    if [[ "$GEN_CACHE_MOVED" == "1" && -d "$PUBLISH_PREVIOUS" ]]; then
+        mv -- "$PUBLISH_PREVIOUS" "$GEN_CACHE"
+        GEN_CACHE_MOVED=0
+    fi
+    echo "提升 fresh snapshot 失败，已恢复原生成缓存。" >&2
+    exit 1
+fi
+GEN_CACHE_MOVED=0
+rm -rf -- "$PUBLISH_PREVIOUS"
+rmdir -- "$PUBLISH_ROOT"
+PUBLISH_ROOT=""

@@ -52,6 +52,18 @@
 | `src/modules/model-resource.test.ts` | 模型 Spine 资源存在性 |
 | `src/modules/building/producing.test.ts` | 建筑产出规则 |
 | `src/modules/charge-shop/free-gift-limit.test.ts` | 充值商店免费商品规则 |
+| `src/modules/all-tables/structure.test.ts` | 全部源表、schema、JSON、主键和生成引用结构审计 |
+| `src/modules/all-tables/reward-contract.test.ts` | 全表通用 Reward / RateReward 契约 |
+| `src/modules/client-runtime/` | 客户端真实消费链业务规则 |
+| `src/modules/server-runtime/` | 服务端真实消费链业务规则 |
+| `src/infra/snapshot_manifest.ts` | fresh 导出源文件哈希与 TOCTOU 校验 |
+| `src/infra/table_audit.ts` | 表集合、JSON、构造、主键与引用通用审计 |
+| `tools/validate_export_snapshot` | 隔离 fresh 导出、测试和缓存提升门禁 |
+| `src/modules/daily-weekly-task/records.ts` | 日周任务三张表的记录类型、Excel 行索引与奖励公共规则 |
+| `src/modules/daily-weekly-task/const.test.ts` | 日周任务常量表规则 |
+| `src/modules/daily-weekly-task/task.test.ts` | 日周任务表规则 |
+| `src/modules/daily-weekly-task/active-chest.test.ts` | 日周活跃宝箱表规则 |
+| `src/modules/daily-weekly-task/taskv1-binding.test.ts` | 日周任务与 taskv1 的绑定规则 |
 | `doc/testing-coverage.md` | 当前测试覆盖摘要 |
 
 ## 数据流
@@ -66,7 +78,7 @@
 
 1. `export_code` 使用 `set -euo pipefail`。
 2. 调用 `config/导出工具/gen.py` 导出服务端 `go-json` 代码。
-3. 调用同一脚本导出客户端 `typescript-json` 代码。
+3. 调用同一脚本以 `all` 目标导出客户端、服务端与枚举组的 `typescript-json` schema。
 4. 不导出 JSON 数据。
 
 `npm test` 流程：
@@ -126,12 +138,29 @@ excel=生产组@J-建筑.xlsx, sheet=生产组, row=6, cell=E6
 
 当前规则：
 
-- `TbChargeShop` 中免费商品（`buyType=Free`）不允许配置为无限购买，即 `limitCnt <= 0` 必须报错。
+- `TbChargeShop` 中免费商品（`buyType=Free`）不允许配置为无限购买，即 `limitCnt < 0` 必须报错；`0` 表示不可购买，不是无限购买。
 
 错误来源会定位到源 Excel 行：
 
 ```text
 excel=商品配置@C-充值商店.xlsx, sheet=商品配置, row=8, cell=I8
+```
+
+### 日周任务
+
+文件：`src/modules/daily-weekly-task/`
+
+三张表（`TbDailyWeeklyTaskConst`、`TbDailyWeeklyTask`、`TbDailyWeeklyActiveChest`）来自同一个 Excel，按 sheet 拆成三个规则文件，与 taskv1 的绑定规则单列一个文件。完整规则清单见 `doc/testing-coverage.md`，维护时注意：
+
+- 服务端 `data/dailyweeklytask` 不再做任何配置规则校验，规则漏配等于线上无人拦截。
+- `taskId`、`openSystemIds`、`systemOpenId` 的引用存在性由 Luban `#ref` 保证，不要在这里重复实现。
+- `W5`、`W6` 的 taskv1 形态（事件、目标次数、条件取值）写死在玩法代码里，改这两条规则前要先确认玩法实现。
+
+错误来源会定位到源 Excel 行：
+
+```text
+excel=任务@R-任务系统-每日每周.xlsx, sheet=任务, row=12, cell=D12, field=periodType
+excel=任务详情@R-任务系统.xlsx, sheet=任务详情, row=1081, cell=G1081, field=inheritTaskId
 ```
 
 ### 模型资源

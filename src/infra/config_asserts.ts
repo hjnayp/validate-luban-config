@@ -4,7 +4,12 @@ import {tb} from "./tb"
 import * as O from "fp-ts/Option";
 
 const discover_cattie_resources_roots = (): ReadonlyArray<string> => {
+    const configured_cattie_root = process.env.CATTIE_ROOT;
     const candidates = [
+        ...(configured_cattie_root === undefined ? [] : [
+            resolve(configured_cattie_root, "assets", "resources"),
+            resolve(configured_cattie_root, "assets", "bundles"),
+        ]),
         resolve(process.cwd(), "client", "cattie", "assets", "resources"),
         resolve(process.cwd(), "client", "cattie", "assets", "bundles"),
         resolve(process.cwd(), "..", "client", "cattie", "assets", "resources"),

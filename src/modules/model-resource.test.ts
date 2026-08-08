@@ -25,7 +25,12 @@ const collect_hero_models = (
         }));
 
 const ERROR_SOURCE_EXCEL = "模型@M-模型配置.xlsx";
-const MODEL_CONFIG_EXCEL_PATH = resolve(process.cwd(), "..", "..", "config", "配置表", "M-模型配置.xlsx");
+const CONFIG_ROOT = resolve(
+    process.env.CONFIG_ROOT
+    ?? process.env.LUBAN_CONFIG_ROOT
+    ?? resolve(process.cwd(), "..", "..", "config"),
+);
+const MODEL_CONFIG_EXCEL_PATH = resolve(CONFIG_ROOT, "配置表", "M-模型配置.xlsx");
 const MODELS_WITHOUT_LOCAL_SPINE_RESOURCE = new Set([1003, 31002, 31003, 31004, 31005, 31007, 40001]);
 
 const format_model_resource_error = (model: HeroModelRecord, reason: string): string =>

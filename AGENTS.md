@@ -9,6 +9,8 @@
 ## 实际目录与关键文件
 
 - `src/modules/building/producing.test.ts`：建筑产出规则校验
+- `src/modules/daily-weekly-task/`：日周任务三张表与 taskv1 绑定的规则校验
+- `src/modules/awaken/`：喵王觉醒皮肤星级、首武器与图鉴收集奖励的规则校验
 - `src/modules/tb.test.ts`：配置表基础校验
 - `src/infra/config_asserts.ts`：配置断言与存在性校验
 - `src/infra/option.ts`：`Option<string>` 到错误列表转换

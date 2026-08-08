@@ -1,6 +1,7 @@
-import {existsSync, readFileSync} from "node:fs";
-import {resolve} from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import * as jsonCfg from "../../gen/schema";
+import {generated_table_file_names} from "./table_audit";
 
 export let tb: jsonCfg.Tables | undefined;
 const datas = new Map<string, unknown>();
@@ -24,10 +25,15 @@ export class cfg_mgr {
     }
 
     public static readonly init_load_all_files = () => {
-        const file_names: readonly string[] = jsonCfg.Tables.getTableNames();
+        const file_names = generated_table_file_names(jsonCfg.Tables);
 
-        // 优先读取与当前文件同级目录下的 json，其次回退到进程工作目录。
+        // fresh 导出时强制读取隔离快照；日常测试再按本地 fixture、gen 缓存回退。
         const resolve_json_file_path = (file_name: string): string => {
+            const snapshot_root = process.env.LUBAN_CONFIG_SNAPSHOT_JSON_ROOT;
+            if (snapshot_root !== undefined) {
+                return resolve(snapshot_root, `${file_name}.json`);
+            }
+
             const local_path = resolve(__dirname, "json", `${file_name}.json`);
             if (existsSync(local_path)) {
                 return local_path;
@@ -43,7 +49,8 @@ export class cfg_mgr {
                 const raw_json: string = readFileSync(json_file_path, "utf-8");
                 const parsed_json: unknown = JSON.parse(raw_json);
                 datas.set(file_name, parsed_json);
-            } catch (error: unknown) {
+            }
+            catch (error: unknown) {
                 if (error instanceof SyntaxError) {
                     throw new Error(`[ConfigManager] JSON 解析失败: ${file_name}, path=${json_file_path}`);
                 }
@@ -59,5 +66,5 @@ export class cfg_mgr {
 
         file_names.forEach(load_one_json);
         this.tables = new jsonCfg.Tables(load_file);
-    }
+    };
 }

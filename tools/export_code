@@ -3,7 +3,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG_ROOT="${CONFIG_ROOT:-"$SCRIPT_DIR/../../config"}"
+CONFIG_ROOT="${CONFIG_ROOT:-"$SCRIPT_DIR/../../../config"}"
 GENERATOR="$CONFIG_ROOT/导出工具/gen.py"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 
@@ -20,7 +20,7 @@ fi
     --conf ../luban_conf_code.conf
 
 "$PYTHON_BIN" "$GENERATOR" \
-    --target client \
+    --target all \
     --code typescript-json \
     --lan zh \
     --ignoreUI
